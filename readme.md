@@ -1,4 +1,4 @@
-# 📅 Rostering App
+# Rostering App
 
 The **Rostering App** provides a simple CLI-based system for managing staff shifts and weekly reports.  
 
