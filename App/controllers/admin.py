@@ -1,43 +1,17 @@
-from App.models import Admin, Staff, Shift
+from App.models import Admin
 from App.database import db
-from datetime import datetime
 
-def createAdmin(name, password):
-    newAdmin = Admin(name=name, password=password)
+def createAdmin(username, password):
+    # prevent duplicate usernames
+    if Admin.query.filter_by(username=username).first():
+        return None
+    newAdmin = Admin(username=username, password=password)
     db.session.add(newAdmin)
     db.session.commit()
     return newAdmin
 
-def schedule(staffID, adminID, startStr, endStr):
-    staffUser = Staff.query.get(staffID)
-    if not staffUser:
-        print("Invalid Staff ID")
-        return None
-    
-    try:
-        start = datetime.strptime(startStr, "%d/%m/%Y %H:%M")
-        end = datetime.strptime(endStr, "%d/%m/%Y %H:%M")
-    except ValueError:
-        print("Invalid format. The proper format is (DD/MM/YYYY HH:MM)")
-        return None
-    
-    scheduledShift = Shift(staffID=staffID, adminID=adminID, start=start, end=end)
-    db.session.add(scheduledShift)
-    db.session.commit()
-    return scheduledShift
+def get_all_admins():
+    return Admin.query.all()
 
-def listAdmins():
-    admins = Admin.query.all()
-    str = ""
-    for admin in admins:
-        str += f'User: {admin.id} - ID: {admin.name}\n'
-    return str
-
-def getAdmin(id):
-    return db.session.get(Admin, id)
-
-def deleteAdmin(id):
-    admin = Admin.query.get(id)
-    if not admin: return None
-    db.session.delete(admin)
-    db.session.commit()
+def get_all_admins_json():
+    return [a.get_json() for a in Admin.query.all()]

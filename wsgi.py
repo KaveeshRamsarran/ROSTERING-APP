@@ -1,159 +1,89 @@
-import click, pytest, sys
-from flask.cli import with_appcontext, AppGroup
+import click
+from flask.cli import AppGroup
 
-from App.database import db, get_migrate
-from App.models import User, Staff, Admin, Shift, Report
 from App.main import create_app
-from App.controllers import (
-    create_user, get_all_users_json, get_all_users, initialize,
-    createAdmin, schedule, listAdmins, getAdmin, deleteAdmin,
-    createStaff, clockInOut, listStaff, getStaff, deleteStaff,
-    getShiftInfo, deleteShift, printShiftInfo,
-    createRoster, createReportData, createReport, listReports, printReportInfo, getReport, deleteReport
-)
+from App.database import get_migrate
+from App.database import db
+
+# controllers
+from App.controllers.initialize import initialize
+from App.controllers.staff import createStaff, get_all_staff, get_all_staff_json
+from App.controllers.admin import createAdmin, get_all_admins, get_all_admins_json
+
+# models (for .first_or_404() usage if needed later)
+from App.models import Staff, Admin
 
 app = create_app()
 migrate = get_migrate(app)
 
-
-'''
-Database Init Command
-'''
-@app.cli.command("init", help="Creates and initializes the database")
+# -------------------------
+# Database init
+# -------------------------
+@app.cli.command("init", help="Creates tables and seeds default data")
 def init():
     initialize()
-    print('database intialized')
+    click.echo("Database initialized and seed complete.")
 
+# -------------------------
+# Staff CLI
+# -------------------------
+staff_cli = AppGroup('staff', help='Staff commands')
 
-'''
-User Commands
-'''
-user_cli = AppGroup('user', help='User object commands')
+@staff_cli.command("create", help='Create a staff user')
+@click.argument("username")
+@click.argument("password")
+def staff_create(username, password):
+    staff = createStaff(username, password)
+    if staff is None:
+        return click.echo(f"Staff '{username}' already exists.")
+    click.echo(staff.get_json())
 
-@user_cli.command("create", help="Creates a user")
-@click.argument("username", default="rob")
-@click.argument("password", default="robpass")
-def create_user_command(username, password):
-    create_user(username, password)
-    print(f'{username} created!')
-
-@user_cli.command("list", help="Lists users in the database")
+@staff_cli.command("list", help='List all staff (string/json)')
 @click.argument("format", default="string")
-def list_user_command(format):
-    if format == 'string':
-        print(get_all_users())
+def staff_list(format):
+    if format == "json":
+        click.echo(get_all_staff_json())
     else:
-        print(get_all_users_json())
-
-app.cli.add_command(user_cli)
-
-
-'''
-Staff Commands
-'''
-staff_cli = AppGroup('staff', help='Staff object commands')
-
-@staff_cli.command("list", help="Lists all staff users in the database")
-def list_staff_command():
-    print(listStaff())
-
-@staff_cli.command("view_roster", help="View the combined staff roster for this week")
-def view_roster_command():
-    roster = createRoster()
-    output = 'All shifts this week/Total roster this week:\n'
-    for staff in roster:
-        str += f'\n{staff}:\n'
-        for shift in roster[staff]:
-            str += f'{shift}\n'
-    print(str)
-
-@staff_cli.command("create", help="Creates a staff user")
-@click.argument('name', default="tom")
-@click.argument('password', default="tompass")
-def create_staff_command(name, password):
-    staff = createStaff(name, password)
-    if not staff:
-        print("Error creating staff user")
-    else:
-        print(f'Staff user {staff.name} successfully created!')
-
-@staff_cli.command("clock", help="Clock in/out of a shift")
-@click.argument("type", type=click.Choice(["in", "out"], case_sensitive=False))
-@click.argument("shiftId", type=int)
-def clock_staff_command(type, shiftId):
-    string = clockInOut(shiftId, type)
-    print(string)
+        # simple string output
+        staff_list = get_all_staff()
+        out = [f"id={s.id}, username={s.username}" for s in staff_list]
+        click.echo("\n".join(out) if out else "No staff found.")
 
 app.cli.add_command(staff_cli)
 
+# -------------------------
+# Admin CLI
+# -------------------------
+admin_cli = AppGroup('admin', help='Admin commands')
 
-'''
-Admin Commands
-'''
-admin_cli = AppGroup('admin', help='Admin object commands')
+@admin_cli.command("create", help='Create an admin user')
+@click.argument("username")
+@click.argument("password")
+def admin_create(username, password):
+    admin = createAdmin(username, password)
+    if admin is None:
+        return click.echo(f"Admin '{username}' already exists.")
+    # expect Admin to have get_json(); if not, print minimal fields
+    try:
+        click.echo(admin.get_json())
+    except Exception:
+        click.echo(f"id={admin.id}, username={admin.username}")
 
-@admin_cli.command("list", help="Lists all admin users in the database")
-def list_admin_command():
-    print(listAdmins())
-
-@admin_cli.command("create", help="Creates an admin user")
-@click.argument('name', default="john")
-@click.argument('password', default="johnpass")
-def create_admin_command(name, password):
-    admin = createAdmin(name, password)
-    if not admin:
-        print("Error creating admin user")
+@admin_cli.command("list", help='List all admins (string/json)')
+@click.argument("format", default="string")
+def admin_list(format):
+    if format == "json":
+        click.echo(get_all_admins_json())
     else:
-        print(f'Admin user {admin.name} successfully created!')
-
-@admin_cli.command("schedule", help='Schedules a shift for a staff user')
-@click.argument("staffId", type=int)
-@click.argument("adminId", type=int)
-@click.argument("startTime")
-@click.argument("endTime")
-def schedule_shift_command(staffId, adminId, startTime, endTime):
-    shift = schedule(staffId, adminId, startTime, endTime)
-    if not shift:
-        print("Error scheduling shift")
-    else:
-        print(f'Shift scheduled! {shift.get_json()}')
-
-@admin_cli.command("list_reports", help="Lists all reports in the database")
-def list_reports_command():
-    print(listReports())
-
-@admin_cli.command("create_report", help="Creates a new report")
-def create_report_command():
-    report = createReport()
-    if not report:
-        print("Error generating report")
-    else:
-        print(f'Report generated!\n\n {printReportInfo(report.get_json())}')
-
-@admin_cli.command("view_report", help="View a report by ID")
-@click.argument("reportId", type=int)
-def view_report_command(reportId):
-    report = getReport(reportId)
-    if not report:
-        print("Could not find report")
-    else:
-        print(printReportInfo(report.get_json()))
+        admins = get_all_admins()
+        out = [f"id={a.id}, username={a.username}" for a in admins]
+        click.echo("\n".join(out) if out else "No admins found.")
 
 app.cli.add_command(admin_cli)
 
-'''
-Test Commands
-'''
-test = AppGroup('test', help='Testing commands')
-
-@test.command("user", help="Run User tests")
-@click.argument("type", default="all")
-def user_tests_command(type):
-    if type == "unit":
-        sys.exit(pytest.main(["-k", "UserUnitTests"]))
-    elif type == "int":
-        sys.exit(pytest.main(["-k", "UserIntegrationTests"]))
-    else:
-        sys.exit(pytest.main(["-k", "App"]))
-
-app.cli.add_command(test)
+# -------------------------
+# Optional: simple health command
+# -------------------------
+@app.cli.command("ping", help="Quick app health check")
+def ping():
+    click.echo("pong")
