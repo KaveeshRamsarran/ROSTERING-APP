@@ -1,3 +1,16 @@
+# Aliases for CLI
+def list_reports():
+    return listReports()
+
+def create_report():
+    report = createReport()
+    return f"Created report {report.id} at {report.timestamp.strftime('%d/%m/%Y %H:%M')}" if report else "Failed to create report."
+
+def view_report(report_id):
+    report = getReport(report_id)
+    if not report:
+        return f"Report {report_id} not found."
+    return printReportInfo(report.get_json() if hasattr(report, 'get_json') else report)
 from App.models import Staff, Shift, Report
 from App.database import db
 from datetime import datetime, timedelta
@@ -9,7 +22,7 @@ def createRoster():
     roster = {}
     for staff in Staff.query.all():
         shifts = Shift.query.filter(Shift.staffID == staff.id, Shift.start >= start, Shift.start <= end).all()
-        roster[staff.name] = [f'{s.start.strftime("%d/%m/%Y %H:%M")} - {s.end.strftime("%d/%m/%Y %H:%M")}' for s in shifts]
+        roster[staff.username] = [f'{s.start.strftime("%d/%m/%Y %H:%M")} - {s.end.strftime("%d/%m/%Y %H:%M")}' for s in shifts]
     return roster
 
 def createReportData():
@@ -20,12 +33,11 @@ def createReportData():
     for staff in Staff.query.all():
         totalWorkedHours = 0
         shiftIDs = []
-      
         shifts = Shift.query.filter(Shift.staffID == staff.id, Shift.start >= start, Shift.start <= end).all()
         for shift in shifts:
             shiftIDs.append(shift.id)
             totalWorkedHours += shift.getHoursWorked()
-        data[staff.name] = {
+        data[staff.username] = {
             "totalWorkedHours": totalWorkedHours,
             "shiftIDs": shiftIDs
         }
