@@ -44,10 +44,15 @@ def staff_list(format):
     if format == "json":
         click.echo(get_all_staff_json())
     else:
-        # simple string output
         staff_list = get_all_staff()
-        out = [f"id={s.id}, username={s.username}" for s in staff_list]
-        click.echo("\n".join(out) if out else "No staff found.")
+        if not staff_list:
+            click.echo("No staff found.")
+            return
+        header = f"{'ID':<5} {'Username':<20} {'Role':<10}"
+        rows = [header, '-'*len(header)]
+        for s in staff_list:
+            rows.append(f"{s.id:<5} {s.username:<20} {'Staff':<10}")
+        click.echo("\n".join(rows))
 
 
 # -------------------------
@@ -100,8 +105,34 @@ def admin_list(format):
         click.echo(get_all_admins_json())
     else:
         admins = get_all_admins()
-        out = [f"id={a.id}, username={a.username}" for a in admins]
-        click.echo("\n".join(out) if out else "No admins found.")
+        if not admins:
+            click.echo("No admins found.")
+            return
+        header = f"{'ID':<5} {'Username':<20} {'Role':<10}"
+        rows = [header, '-'*len(header)]
+        for a in admins:
+            rows.append(f"{a.id:<5} {a.username:<20} {'Admin':<10}")
+        click.echo("\n".join(rows))
+
+# -------------------------
+# User CLI (table output)
+# -------------------------
+@app.cli.command("user_list", help="List all users (string/json)")
+@click.argument("format", default="string")
+def user_list(format):
+    from App.controllers.user import get_all_users, get_all_users_json
+    if format == "json":
+        click.echo(get_all_users_json())
+    else:
+        users = get_all_users()
+        if not users:
+            click.echo("No users found.")
+            return
+        header = f"{'ID':<5} {'Username':<20} {'Role':<10}"
+        rows = [header, '-'*len(header)]
+        for u in users:
+            rows.append(f"{u.id:<5} {u.username:<20} {'User':<10}")
+        click.echo("\n".join(rows))
 
 
 # -------------------------
@@ -123,8 +154,37 @@ def admin_schedule(staff_id, admin_id, start_time, end_time):
 @admin_cli.command("list_reports", help="List all reports")
 def admin_list_reports():
     from App.controllers.report import list_reports
-    result = list_reports()
-    click.echo(result)
+    from App.models import Report
+    reports = Report.query.all()
+    if not reports:
+        click.echo("No reports found.")
+        return
+    header = f"{'ID':<5} {'Timestamp':<20}"
+    rows = [header, '-'*len(header)]
+    for r in reports:
+        rows.append(f"{r.id:<5} {r.timestamp.strftime('%d/%m/%Y %H:%M'):<20}")
+    click.echo("\n".join(rows))
+
+# -------------------------
+# Shift CLI (table output)
+# -------------------------
+@app.cli.command("shift_list", help="List all shifts (string/json)")
+@click.argument("format", default="string")
+def shift_list(format):
+    from App.models import Shift
+    shifts = Shift.query.all()
+    if format == "json":
+        click.echo([s.get_json() for s in shifts])
+    else:
+        if not shifts:
+            click.echo("No shifts found.")
+            return
+        header = f"{'ID':<5} {'StaffID':<8} {'AdminID':<8} {'Start':<17} {'End':<17} {'ClockIn':<17} {'ClockOut':<17}"
+        rows = [header, '-'*len(header)]
+        for s in shifts:
+            rows.append(f"{s.id:<5} {s.staffID:<8} {s.adminID:<8} {s.start.strftime('%d/%m/%Y %H:%M'):<17} {s.end.strftime('%d/%m/%Y %H:%M'):<17} "
+                        f"{s.clockIn.strftime('%d/%m/%Y %H:%M') if s.clockIn else '-':<17} {s.clockOut.strftime('%d/%m/%Y %H:%M') if s.clockOut else '-':<17}")
+        click.echo("\n".join(rows))
 
 # -------------------------
 # Admin: create report
